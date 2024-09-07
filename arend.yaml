@@ -1,0 +1,5 @@
+langVersion: ""
+sourcesDir: src
+binariesDir: bin
+version: ""
+dependencies: [arend-lib]
