@@ -1,47 +1,122 @@
 \import Data.Bool
+\import Data.List
 \import Data.Or
+\import Debug.Meta
 \import Logic
+\import hw01 (fac)
 
 -- 1. Определите полиморфный tail для списков
 
+\func tail {A : \Type} (x : List A) : List A => \case x \with {
+  | nil => nil
+  | :: hd tl => tl
+}
+
 -- 2. Реализуйте любой (but choose wisely) алгоритм сортировки. Функцию сравнения можно принимать в качестве аргумента
+
+\func sort {A : \Type} (cmp : A -> A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | :: x xs => insert cmp x (sort cmp xs)
+  \where
+    \func insert {A : \Type} (_ : A -> A -> Bool) (_ : A) (_ : List A) : List A
+      | cmp, x, nil => x :: nil
+      | cmp, x, :: x' xs => \case cmp x x' \with {
+        | true => x :: x' :: xs
+        | false => x' :: insert cmp x xs
+      }
+
+\func \infix 4 < (_ _ : Nat) : Bool
+  | 0, 0 => false
+  | 0, suc y => true
+  | suc x, 0 => false
+  | suc x, suc y => x < y
+
+\func sortTest1 : sort (<) nil = nil => idp
+
+\func sortTest2 : nf (sort (<) (0 :: 6 :: 0 :: 9 :: nil)) = 0 :: 0 :: 6 :: 9 :: nil => idp
+
+\func sortTest3 : nf (sort (<) (3 :: 4 :: 2 :: 1 :: nil)) = 1 :: 2 :: 3 :: 4 :: nil => idp
+
+\func sortTest4 : nf (sort (<) (5 :: 2 :: 1000 :: 133 :: nil)) = 2 :: 5 :: 133 :: 1000 :: nil => idp
 
 -- 3. Докажите ассоциативность && и ||
 
-\func &&-assoc (x y z : Bool) : (x and y) and z = x and (y and z) => {?}
+\func &&-assoc (x y z : Bool) : (x and y) and z = x and (y and z)
+  | true, true, true => idp
+  | true, true, false => idp
+  | true, false, true => idp
+  | true, false, false => idp
+  | false, true, true => idp
+  | false, true, false => idp
+  | false, false, true => idp
+  | false, false, false => idp
 
-\func ||-assoc (x y z : Bool) : (x or y) or z = x or (y or z) => {?}
+\func ||-assoc (x y z : Bool) : (x or y) or z = x or (y or z)
+  | true, true, true => idp
+  | true, true, false => idp
+  | true, false, true => idp
+  | true, false, false => idp
+  | false, true, true => idp
+  | false, true, false => idp
+  | false, false, true => idp
+  | false, false, false => idp
 
 -- 4. Докажите, что fac 3 равно 6
+
+\func fac3eq6 : fac 3 = 6 => idp
 
 -- 5. Докажите следующие пропозициональные тавтологии (можно решить любые 2 из 3 задач)
 
 -- t1 : (P and Q -> R) -> P -> Q -> R
-\func t1 {P Q R : \Type} (f : \Sigma P Q -> R) (p : P) (q : Q) : R => {?}
 
+\func t1 {P Q R : \Type} (f : \Sigma P Q -> R) (p : P) (q : Q) : R => f (p, q)
 -- t2 : (P -> R) -> (Q -> R) -> P or Q -> R
-\func t2 {P Q R : \Type} (f : P -> R) (g : Q -> R) (h : Or P Q) : R => {?}
 
+\func t2 {P Q R : \Type} (f : P -> R) (g : Q -> R) (h : Or P Q) : R \elim h
+  | inl a => f a
+  | inr b => g b
 -- t3 : ((P -> Q -> R) -> P) -> (P -> R) -> R
-\func t3 {P Q R : \Type} (f : (P -> Q -> R) -> P) (g : P -> R) : R => {?}
+
+\func t3 {P Q R : \Type} (f : (P -> Q -> R) -> P) (g : P -> R) : R => g (f (\lam p _ => g p))
 
 -- 6. Сформулируйте и докажите следующие пропозициональные тавтологии (можно решить любые 2 из 3 задач)
 
 -- t4 : (P -> Q -> R) -> P /\ Q -> R
+
+\func t4 {P Q R : \Type} (f : P -> Q -> R) (pq : \Sigma P Q) : R => f pq.1 pq.2
+
 -- t5 : (P or Q -> P /\ Q) -> (P -> Q) /\ (Q -> P)
+
+\func t5 {P Q : \Type} (f : Or P Q -> \Sigma P Q) : \Sigma (P -> Q) (Q -> P) =>
+  (\lam p => (f (inl p)).2, \lam q => (f (inr q)).1)
+
 -- t6 : ((((P -> Q) -> P) -> P) -> Q) -> Q
+
+\func t6 {P Q : \Type} : ((((P -> Q) -> P) -> P) -> Q) -> Q =>
+  \lam pqppq => pqppq (__ (\lam p => pqppq (\lam _ => p)))
 
 -- 7. Докажите следующие утверждения
 
 -- s1 : Если для любого x : Nat верно P(x), то существует x : Nat для которого P(x) верно
-\func s1 (P : Nat -> \Type) (h : \Pi (x : Nat) -> P x) : \Sigma (x : Nat) (P x) => {?}
+
+\func s1 (P : Nat -> \Type) (h : \Pi (x : Nat) -> P x) : \Sigma (x : Nat) (P x) => (0, h 0)
 
 -- s2 : Если не существует x : Nat такого, что верно P(x), то P(3) не верно
-\func s2 (P : Nat -> \Type) (h : \Sigma (x : Nat) (P x) -> Empty) : P 3 -> Empty => {?}
+
+\func s2 (P : Nat -> \Type) (h : \Sigma (x : Nat) (P x) -> Empty) : P 3 -> Empty => \lam p => h (3, p)
 
 -- 8. Сформулируйте и докажите следующие утверждения
 
 -- s3 : Если для всех x : Nat верно, что P(x) влечет Q(x), и существует x : Nat для которого верно P(x),
 -- то существует x : Nat для которого верно Q(x)
 
+\func s3 (P Q : Nat -> \Type) (h : \Pi (x : Nat) -> P x -> Q x) (f : \Sigma (x : Nat) (P x)) : \Sigma (x : Nat) (Q x) =>
+  \let n => f.1 \in (n, h n f.2)
+
 -- s4 : Если для всех x : Nat либо не верно P(x), либо не верно Q(x), то P(3) влечет, что Q(3) не верно
+
+\func s4 (P Q : Nat -> \Type) (h : \Pi (x : Nat) -> Or (P x -> Empty) (Q x -> Empty)) (p : P 3) : Q 3 -> Empty =>
+  \lam q => \case h 3 \with {
+    | inl a => a p
+    | inr b => b q
+  }
