@@ -1,12 +1,17 @@
 \import Data.Bool
-\import Data.List (List, length)
+\import Data.List
+\import Function.Meta
 \import Logic
+\import Meta
+\import Paths.Meta
 \import lect07
-\open Nat(+,*)
+\open Nat (*)
 
 -- 1. Определите предикат принадлежности элемента списку
 
-\data In {A : \Type} (a : A) (xs : List A)
+\data In {A : \Type} (a : A) (xs : List A) \with
+  | a, :: x xs => InHead (a = x)
+  | a, :: x xs => InTail (In a xs)
 
 -- Optional:
 -- 2. Докажите эквивалентность четырех различных определений LessOrEq: lessOrEq, lessOrEq', LessOrEq и LessOrEq'
@@ -15,6 +20,9 @@
 --    То есть ReflTransClosure R -- это минимальное рефлексивное и транзитивное отношение, содержащее R
 
 \data ReflTransClosure {A : \Type} (R : A -> A -> \Type) (x y : A)
+  | refl (R x y)
+  | trans (\Sigma (z : A) (ReflTransClosure R x z) (R z y))
+
 
 -- 4. Докажите, что если R уже рефлексивно и транзитивно, то ReflTransClosure R эквивалентно R
 
@@ -23,21 +31,60 @@
 \func ReflTransClosure-lem {A : \Type} (R : A -> A -> \Type)
                            (refl : \Pi (x : A) -> R x x)
                            (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
-  : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y
-  => {?}
+  : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y => \lam x y => (
+  \lam r_x_y => ReflTransClosure.trans (y, ReflTransClosure.refl r_x_y, refl y),
+  \lam r => closure R refl trans x y r
+)
+  \where {
+    \func closure {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) ->
+        R x y -> R y z -> R x z) (x y : A) (r : ReflTransClosure R x y) : R x y \elim r {
+      | ReflTransClosure.refl p => p
+      | ReflTransClosure.trans t => trans x t.1 y (closure R refl trans x t.1 t.2) t.3
+    }
+  }
 
 -- 5. Определите предикат Sublist xs ys на списках, означающий "список xs является подсписком ys"
 
+\data Sublist {A : \Type} (xs ys : List A) \with
+  | nil, ys => NilSublist
+  | :: x xs, :: y ys => HeadSublist (x = y) (Sublist xs ys)
+  | xs, :: y ys => TailSublist (Sublist xs ys)
+
 -- 6. Докажите, что Sublist (filter p xs) xs для любых p и xs
+
+\func Sublist-lem {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter p xs) xs \elim xs
+  | nil => NilSublist
+  | :: x xs => mcases \with {
+    | true => HeadSublist idp (Sublist-lem p xs)
+    | false => TailSublist (Sublist-lem p xs)
+  }
 
 -- 7. Определите filter через if, а не через \case
 --    Докажите для этой версии filter лемму filter-lem
 
-\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A => {?}
+\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim  xs
+  | nil => nil
+  | :: a xs => if (p a) (a :: filter' p xs) $ filter' p xs
 
-\func filter-lem {A : \Type} (p : A -> Bool) (xs : List A) : LessOrEq (length (filter' p xs)) (length xs) => {?}
-
+\func filter-lem {A : \Type} (p : A -> Bool) (xs : List A) : LessOrEq (length (filter' p xs)) (length xs)
+  | p, nil => zero<=_
+  | p, :: a xs => cases (p a) \with {
+    | true => suc<=suc (filter-lem p xs)
+    | false => <=-helper (filter-lem p xs)
+  }
 -- 8. Закончите определение функции \func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x из лекции
+
+\func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x =>
+  \case f true \as b, idp : f true = b, f false \as b', \elim x, idp : f false = b' \with {
+    | true, p, true, true, p1 => rewrite p (rewrite p p)
+    | true, p, true, false, p1 => rewrite p1 (rewrite p p)
+    | true, p, false, true, p1 => rewrite p (rewrite p p)
+    | true, p, false, false, p1 => rewrite p1 (rewrite p1 p1)
+    | false, p, true, true, p1 => rewrite p (rewrite p1 p)
+    | false, p, true, false, p1 => rewrite p1 (rewrite p p1)
+    | false, p, false, true, p1 => rewrite p (rewrite p1 p1)
+    | false, p, false, false, p1 => rewrite p1 (rewrite p1 p1)
+  }
 
 -- 9. Докажите, что предикат isEven разрешим
 
@@ -48,19 +95,43 @@
 -- 10. Докажите, что если равенство элементов A разрешимо, то и равенство элементов List A тоже разрешимо
 
 \instance ListEq {A : \Type} (dec : Eq A) : Eq (List A)
-  | decideEq => {?}
+  | decideEq (a a' : List A) : Decide (a = a') \with {
+    | nil, nil => yes idp
+    | nil, :: y ys => no (\case __)
+    | :: x xs, nil => no (\case __)
+    | :: x xs, :: y ys => cases (dec.decideEq x y) \with {
+      | yes x=y => cases (decideEq xs ys) \with {
+        | yes xs=ys => yes $ path $ \lam i => :: (x=y i) (xs=ys i)
+        | no xs!=ys => no $ \lam p => xs!=ys $ \lam i => cases (p i) \with {
+          | nil => nil
+          | :: a x1 => x1
+        }
+      }
+      | no x!=y => no $ \lam p => x!=y $ path $ \lam i => cases (p i) \with {
+        | nil => x
+        | :: a l => a
+      }
+    }
+  }
 
 -- 11. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны
 
-\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p => {?}
+\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p =>
+  ext \lam a => unfold (FromBoolToDec, FromDecToBool) $ cases (p a) \with {
+    | false => idp
+    | true => idp
+  }
 
 -- Мы не можем доказать, что FromBoolToDec (FromDecToBool P) = P,
 -- но мы можем доказать более слабое утверждение: эти предикаты логически эквивалентны
 -- Для этого введем эквивалентность предикатов
 
-\func dbd {A : \Type} (P : \Sigma (P : A -> \Type) (DecPred P))
-  : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x
-  => {?}
+\func dbd {A : \Type} (P : \Sigma (P : A -> \Type) (DecPred P)) : \Pi (x : A) ->
+    (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x =>
+  unfold (FromDecToBool, FromBoolToDec) (\lam _ => mcases \with {
+    | yes p => (\lam _ => p, \lam _ => ())
+    | no e => (absurd, e)
+  })
 
 -- Optional:
 -- 12. Парадокс Рассела показывает, что не существует множества всех множеств
@@ -73,4 +144,5 @@
 --     Верно, что в общем случае существование такого утверждения влечет противоречие
 --     Это легко доказать при помощи исключенного третьего, но утверждение верно и без него
 --     Докажите этот факт
+
 \func contrProp {A : \Type} (p : A -> Not A) (q : Not A -> A) : Empty => {?}
