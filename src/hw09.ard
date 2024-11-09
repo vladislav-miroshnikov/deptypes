@@ -1,5 +1,10 @@
-\import Data.Maybe
-\import lect07 (Decide)
+\import Data.Maybe (Maybe, just)
+\import Function.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import lect04 (sym)
+\import lect07 (Decide, no, yes)
 \import lect09
 
 -- 1. Докажите, что оператор >>= ассоциативен для Monad Term
@@ -9,38 +14,132 @@
 
 -- 2. Определите отношение многошаговой редукции на Term
 
-\func Red {V : \Set} (t s : Term V) : \Type => {?}
+\func Red {V : \Set} (t s : Term V) : \Type => Red' t s
+  \where {
+    \data Red' {V : \Set} (t s : Term V)
+      | red1 (Red1 t s)
+      | redstep {k : Term V} (Red1 t k) (Red' k s)
+  }
 
 -- 3. Стратегия редукции -- это функция, которая каждому терму сопоставляет либо некоторый терм,
 --    к которому он редуцируется за 1 шаг, либо доказательство, что таких термов нет
 --    Определите любую стратегию редукции
 
-\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) => {?}
+\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) \elim t
+  | lam t => cases (strategy t) \with {
+    | yes (t', t->t') => yes (lam t', red-lam t->t')
+    | no n => no $ \lam (s, r) => cases (s, r) \with {
+      | lam t, red-lam t->t' => n (t, t->t')
+    }
+  }
+  | var v => Decide.no $ (\lam (term, red) => \case red)
+  | unit => Decide.no $ (\lam (term, red) => \case red)
+  | app (lam t1) t2 => yes (t1 >>= maybe t2 var, beta t1 idp idp)
+  | app (var v) t => \case strategy t \with {
+    | yes (t', t->t') => yes (app (var v) t', red-right idp t->t')
+    | no n => no
+        (\lam p => cases p \with {
+        (t', t->t') => cases (t', t->t') \with {
+          | t'1, beta ty' p1 p2 => \case p1
+          | app t'1 t'2, red-left t->t'1 p1 => \case t->t'1
+          | app t'1 t'2, red-right p1 t->t'1 => n (t'2, t->t'1)
+        }
+        })
+  }
+  | app unit t => \case strategy t \with {
+    | yes (t', t->t') => yes (app unit t', red-right idp t->t')
+    | no n => no
+        (\lam p => cases p \with {
+        (t', t->t') => cases (t', t->t') \with {
+          | t'1, beta ty' p1 p2 => \case p1
+          | app t'1 t'2, red-left t->t'1 p1 => \case t->t'1
+          | app t'1 t'2, red-right p1 t->t'1 => n (t'2, t->t'1)
+        }
+        })
+  }
+  | app (app t1 t2) t' => cases (strategy t') \with {
+    | yes (t'', t'->t'') => yes (app (app t1 t2) t'', red-right idp t'->t'')
+    | no n => cases (strategy (app t1 t2)) \with {
+      | yes (trm', trm->trm') => yes (app trm' t', red-left trm->trm' idp)
+      | no n1 => no $ \lam (t1, t2) => cases (t1, t2) \with {
+        | x, beta ty' p p1 => cases p
+        | app x x1, red-left x2 p => n1 (x, x2)
+        | app x x1, red-right p x2 => n (x1, x2)
+      }
+    }
+  }
 
 -- 4. Докажите, что подтермы достижимого терма достижимы
 
-\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t
-  => {?}
+\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim a
+  | acc f => acc $ \lam t' t->t' => appAccLeft $ f (app t' s) (red-left t->t' idp)
 
-\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s
-  => {?}
+\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s \elim a
+  | acc f => acc $ \lam s' s->s' => appAccRight $ f (app t s') (red-right idp s->s')
 
-\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t
-  => {?}
+\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t \elim a
+  | acc f => acc $ \lam t' t->t' => subLamAcc $ f (lam t') (red-lam t->t')
 
 -- 5. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию:
 --    если Г, x : A |- b : B и Г |- a : A, то Г |- b[a/x] : B
 
 \func substLem {U V : \Set} (ctx : U -> Type) (b : Term U) (B : Type) (h : hasType ctx b B)
                (ctx' : V -> Type) (a : U -> Term V) (h' : \Pi (u : U) -> hasType ctx' (a u) (ctx u))
-  : hasType ctx' (b >>= a) B => {?}
+  : hasType ctx' (b >>= a) B
+\elim b, B, h
+  | unit, Unit, unitType => unit-type
+  | var v, B, var-type p => \case var v >>= a \as x, idp : a v = x \return hasType ctx' x B \with {
+    | var v1, pp => rewriteI p (rewriteI pp (h' v))
+    | unit, pp => rewriteI p (transport (\lam x => hasType ctx' x (ctx v)) pp (h' v))
+    | app t t1, pp => rewriteI p (rewriteI pp (h' v))
+    | lam t, pp => rewriteI p (rewriteI pp (h' v))
+  }
+  | app b1 b2, B, app-type {A} h2 h1 =>
+    \let
+      | l1 => substLem ctx b1 (Arr A B) h1 ctx' a h'
+      | l2 => substLem ctx b2 A h2 ctx' a h'
+      | l3 => app-type l2 l1
+    \in \case app b1 b2 >>= a \as x, idp : app (b1 >>= a) (b2 >>= a) = x \return hasType ctx' x B \with {
+      | var v, pp => rewriteI pp l3
+      | unit, pp => transport (\lam x => hasType ctx' x B) pp l3
+      | app t t1, pp => rewriteI pp l3
+      | lam t, pp => rewriteI pp l3
+    }
+  | lam b, Arr A B, lam-type h =>
+    \let
+      | l1 => substLem (maybe A ctx) b B h (maybe A ctx') (liftM a) (\lam mu => \case \elim mu \with {
+        | nothing => unfold liftM {?}
+        | just a1 => unfold liftM {?}
+      })
+    \in lam-type l1
 
-\func substLem1 => {?}
+\func substLem1 {U : \Set} {ctx : U -> Type} {a : Term U} {b : Term (Maybe U)} {A B : Type} (h : hasType ctx a A)
+                (h' : hasType (maybe A ctx) b B) : hasType ctx (b >>= maybe a var) B =>
+  substLem (maybe A ctx) b B h' ctx (maybe a var) $ \case \elim __ \with {
+    | nothing => h
+    | just v => var-type idp
+  }
 
 -- 6. Докажите, что если Г |- a : A и Red a a', то Г |- a' : A
 
 \func redLem {V : \Set} {ctx : V -> Type} {a a' : Term V} (r : Red a a') {A : Type} (h : hasType ctx a A)
-  : hasType ctx a' A => {?}
+  : hasType ctx a' A \elim r
+  | Red.red1 r => redLem' r h
+  | Red.redstep r r' => redLem r' (redLem' r h)
+  \where {
+    \func bind-equiv {V U : \Set} {t : Term V} {f : V -> Term U} : t >>= {TermMonad} f = t >>= {lect09.TermMonad} f \elim t
+      | app a b => pmap2 app bind-equiv bind-equiv
+      | lam t => pmap lam bind-equiv
+      | var v => idp
+      | unit => idp
+
+    \func redLem' {V : \Set} {ctx : V -> Type} {a a' : Term V} (r : Red1 a a') {A : Type} (h : hasType ctx a A)
+      : hasType ctx a' A \elim a, a', r, A, h
+      | app a b, a', beta r' idp p, A, app-type C (lam-type h) h' => rewrite (p, sym bind-equiv) $ substLem1 h' h
+      | app a b, app a' b', red-left r idp, A, app-type t' h h' => app-type t' (redLem' r h) h'
+      | app a b, app a' b', red-right idp r, A, app-type t' h h' => app-type t' h (redLem' r h')
+      | lam t, lam t', red-lam r, Arr A A1, lam-type h => lam-type (redLem' r h)
+  }
 
 -- Optional
 -- 7. Для доказательства typeableInterp понадобится вспомогательное утверждение. Докажите его.
