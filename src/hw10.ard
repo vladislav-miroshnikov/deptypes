@@ -9,7 +9,7 @@
 \import Paths.Meta
 \import hw04
 \import lect04 (sym)
-\import lect07 (Decide, no, yes)
+\import lect07 (Decide, no, pred, yes)
 \import lect10
 
 -- 1. Пусть f : A -> B и g : B -> C ─ некоторые функции
@@ -83,7 +83,57 @@
   | refl (x = y)
   | inc (R x y)
 
-\func ReflClosure_<-isProp (n m : Nat) : isProp (ReflClosure (\lam x y => So (x < y)) n m) => {?}
+\func Nat-isSet : isSet Nat => setLem Nat-Eq nat-eq-isProp nat-to-eq nat-eq-is-eq
+  \where {
+    \data Nat-Eq (n m : Nat) \elim n, m
+      | 0, 0 => eq-zero
+      | suc n, suc m => eq-suc (Nat-Eq n m)
+
+    \func nat-eq-isProp (n m : Nat) : isProp (Nat-Eq n m) => \lam x y => nat-eq-isProp-impl n m x y
+
+    \func nat-eq-isProp-impl (n m : Nat) (x y : Nat-Eq n m) : x = y
+      | 0, 0, eq-zero, eq-zero => idp
+      | suc n, suc m, eq-suc x, eq-suc y => pmap eq-suc $ nat-eq-isProp-impl n m x y
+
+    \func nat-to-eq (n : Nat) : Nat-Eq n n \elim n
+      | 0 => eq-zero
+      | suc n => eq-suc (nat-to-eq n)
+
+    \func nat-eq-is-eq {n m : Nat} (ns : Nat-Eq n m) : n = m \elim n, m, ns
+      | 0, 0, eq-zero => idp
+      | suc n, suc m, eq-suc ns => pmap suc $ nat-eq-is-eq ns
+  }
+
+\func ReflClosure_<-isProp (n m : Nat) : isProp (ReflClosure (\lam x y => So (x < y)) n m) \elim n, m
+  | 0, 0 => \lam x y => cases (x, y) \with {
+    | refl p1, refl p2 => \let p1-p2 : p1 = p2 => Nat-isSet 0 0 p1 p2 \in rewrite p1-p2 idp
+    | refl p, inc r => absurd r
+    | inc r, refl p => absurd r
+    | inc r1, inc r2 => absurd r1
+  }
+  | 0, suc m => \lam x y => cases (x, y) \with {
+    | refl p1, refl p2 => \case p1
+    | refl p, inc r => \case p
+    | inc r, refl p => \case p
+    | inc r1, inc r2 => pmap inc $ cases (r1, r2) \with {
+      | (), () => idp {\Sigma}
+    }
+  }
+  | suc n, 0 => \lam x _ => cases x \with {
+    | refl p => \case p
+    | inc r => absurd r
+  }
+  | suc n, suc m => \lam x y => cases (x, y) \with {
+    | refl p1, refl p2 => pmap refl $ Nat-isSet _ _ p1 p2
+    | refl p, inc r => \let r => rewrite (pmap pred p, n<n m) r \in absurd r
+    | inc r, refl p => \let r => rewrite (pmap pred p, n<n m) r \in absurd r
+    | inc r1, inc r2 => pmap inc ext
+  }
+  \where {
+    \func n<n (n : Nat) : n < n = false \elim n
+      | 0 => idp
+      | suc n => n<n n
+  }
 
 \func ReflClosure_<=-isNotProp (p : \Pi (n m : Nat) -> isProp (ReflClosure LessOrEq n m)) : Empty =>
   \case p 0 0 (refl idp) (inc z<=n) \with {
