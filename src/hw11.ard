@@ -1,25 +1,44 @@
 \import Data.Bool
 \import Function
-\import Logic (<->)
+\import Function.Meta
+\import Logic (<->, prop-isProp)
+\import Meta
+\import Paths (pmap)
+\import Paths.Meta
 \import lect11
 
 -- 1. Докажите, что если A : \Prop, то Trunc A эквивалентен A
 
-\func trunc-prop {A : \Prop} : Trunc A <-> A => {?}
+\func trunc-prop {A : \Prop} : Trunc A <-> A => (\lam t => \case t \with {
+  | trunc a => a
+}, trunc)
+
 
 -- 2. Докажите следующий закон де Моргана
 
-\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) => {?}
+\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) =>
+  (
+    \lam (l, r) => cases (l, r) \with {
+      | a, inl b => inl (a, b)
+      | a, inr c => inr (a, c)
+    }
+  , cases __ \with {
+    | inl (a, b) => (a, inl b)
+    | inr (a, c) => (a, inr c)
+  }
+  )
 
 -- 3. Определите элиминатор для Or через Or-rec, не используя паттерн матчинг на Or
 
 \func Or-elim {A B : \Prop} (C : Or A B -> \Prop)
               (f : \Pi (x : A) -> C (inl x)) (g : \Pi (y : B) -> C (inr y))
-              (p : A `Or` B) : C p => {?}
+              (p : A `Or` B) : C p => Or-rec
+    (\lam a => transport C (prop-isProp (inl a) p) (f a))
+    (\lam b => transport C (prop-isProp (inr b) p) (g b)) p
 
 -- 4. Докажите, что тип утверждений является множеством
 
-\func prop-isSet : isSet \Prop => {?}
+\func prop-isSet : isSet \Prop => \lam _ _ => pathInProp
 
 -- 5. Докажите, что функции Prop1-to-Prop2 и Prop2-to-Prop1 взаимно обратны и, как следствие, что Prop1 = Prop2
 
@@ -30,7 +49,9 @@
 
 \func isCogenerator (C : \Type) => \Pi {A B : \Set} (f g : A -> B) (p : \Pi (h : B -> C) -> h o f = h o g) -> f = g
 
-\func PropIsCogenerator : isCogenerator \Prop => {?}
+\func PropIsCogenerator : isCogenerator \Prop => \lam f _ p => ext \lam a =>
+    \have q => pmap (`$ a) $ p ((=) (f a)) \in
+      transport (\lam X => X) q idp
 
 -- 6b. Тип X называется инъективным, если для любой функции f : A -> X и любой инъекции i : A -> B
 --     существует функция l : B -> X такая, что l o i = f
@@ -41,7 +62,14 @@
 \func isInjective (X : \Type) =>
   \Pi {A B : \Type} (f : A -> X) (i : A -> B) (p : isInj i) -> \Sigma (l : B -> X) (l o i = f)
 
-\func Prop-isInjective : isInjective \Prop => {?}
+\func Prop-isInjective : isInjective \Prop =>
+  \lam {A B : \Type} (f : A -> \Prop) (i : A -> B) (inj : isInj i) =>
+      (\lam (b : B) => Trunc (\Sigma (a : A) (i a = b) (f a)),
+       ext \lam (a : A) => ext
+           (\case __ \with {
+             | trunc (a', p, fa') => rewriteI (inj a' a p) fa'
+           },
+            \lam (fa : f a) => trunc (a, idp, fa)))
 
 -- Можно сделать только одно из упражнений 7a, 7b на выбор
 -- 7a. Докажите, что (Bool = Bool) = Bool
