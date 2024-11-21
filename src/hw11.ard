@@ -1,10 +1,13 @@
 \import Data.Bool
+\import Equiv
+\import Equiv.Univalence
 \import Function
 \import Function.Meta
 \import Logic (<->, prop-isProp)
 \import Meta
-\import Paths (pmap)
+\import Paths (*>, inv, pmap)
 \import Paths.Meta
+\import lect04 (sym)
 \import lect11
 
 -- 1. Докажите, что если A : \Prop, то Trunc A эквивалентен A
@@ -42,6 +45,32 @@
 
 -- 5. Докажите, что функции Prop1-to-Prop2 и Prop2-to-Prop1 взаимно обратны и, как следствие, что Prop1 = Prop2
 
+\func Prop2'=P {A : \Type} (p : isProp A) : Prop2-to-Prop1' A p = A => ext (\new QEquiv {
+  | f => outc
+  | ret => inc
+  | ret_f => inc' p
+  | f_sec => outc' p
+})
+  \where {
+    \sfunc outc {A : \Type} {p : isProp A} (x : Prop2-to-Prop1' A p) : A \elim x
+      | inc a => a
+
+    \func outc' {A : \Type} (p : isProp A) (x : A) : outc (inc {_} {p} x) = x => \peval outc (inc x)
+
+    \func inc' {A : \Type} (p : isProp A) (x : Prop2-to-Prop1' A p) : inc (outc x) = x \elim x
+      | inc a => pmap inc $ outc' _ _
+  }
+
+\func Prop1=Prop2 (P : \Prop) : Prop2-to-Prop1 (Prop1-to-Prop2 P) = P => Prop2'=P pathInProp
+
+\func Prop2=Prop1 (P : Prop2) : Prop1-to-Prop2 (Prop2-to-Prop1 P) = P \elim P
+  | (P, p) => ext (Prop2'=P p, isProp-prop _ _)
+  \where {
+    \func prop-set {P : \Type} (p : isProp P) : isSet P =>
+      \lam _ _ (path a) (path b) => \let k : a = b => ext (\lam _ => p _ _) \in rewrite k idp
+
+    \func isProp-prop {P : \Type} (p q : isProp P) : p = q => ext (\lam _ _ => prop-set p _ _ _ _)
+  }
 -- Можно сделать только одно из упражнений 6a, 6b на выбор
 -- 6a. Тип С называется когенератором, если для любых множеств A и B и любых функций f, g : A -> B верно,
 --     что если h o f = h o g для всех h : B -> C, то f = g
@@ -74,6 +103,43 @@
 -- Можно сделать только одно из упражнений 7a, 7b на выбор
 -- 7a. Докажите, что (Bool = Bool) = Bool
 
-\func BoolAut : (Bool = Bool) = Bool => {?}
-
+\func BoolAut : (Bool = Bool) = Bool => transport (\lam X => X = Bool) (sym equality=equivalence)
+  $ QEquiv-to-= \new QEquiv {
+  | f e => e false
+  | ret => \case __ \with {
+    | false => \new QEquiv {
+      | f => \lam b => b
+      | ret => \lam b => b
+      | ret_f => \lam _ => idp
+      | f_sec => \lam _ => idp
+    }
+    | true => \new QEquiv {
+      | f => not
+      | ret => not
+      | ret_f => not-not
+      | f_sec => not-not
+    }
+  }
+  | ret_f e => Equiv.equals $ ext \case \elim __ \with {
+    | true => cases (e false arg addPath, e true arg addPath) \with {
+      | false, p, false, q => inv (Equiv.ret_f {e} true) *> pmap Equiv.ret (q *> inv p) *> Equiv.ret_f false
+      | true, p, true, q => inv (Equiv.ret_f {e} false) *> pmap Equiv.ret (p *> inv q) *> Equiv.ret_f true
+      | false, p, true, q => idp
+      | true, p, false, q => idp
+    }
+    | false => cases (e false arg addPath, e true arg addPath) \with {
+      | false, p, false, q => idp
+      | true, p, true, q => idp
+      | false, p, true, q => idp
+      | true, p, false, q => idp
+    }
+  }
+  | f_sec b => \case \elim b \with {
+    | true => idp
+    | false => idp
+  }
+}
+  \where {
+    \func equality=equivalence {A B : \Type} : (A = B) = Equiv {A} {B} => QEquiv-to-= univalence
+  }
 -- 7b. Докажите, что (n+m)-элементное множество равно размеченному объединению n- и m-элементных множеств
