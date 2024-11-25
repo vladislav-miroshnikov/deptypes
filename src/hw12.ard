@@ -1,7 +1,10 @@
 \import Function (o)
+\import Function.Meta
 \import Logic
 \import Logic.Meta
 \import Paths
+\import Paths.Meta
+\import hw07 (contrProp)
 \import lect12 \hiding (Int', pos, neg)
 
 -- 1. Определите функцию negPred : Int -> Int такую, что negPred x = x, если x > 0, и negPred x = x - 1, если x <= 0
@@ -85,11 +88,14 @@
 -- Формально утверждение теоремы Кантора состоит из двух частей:
 -- "существует инъекция из A в Subs A" и "не существует сюръекции из A в Subs A"
 
-\func cantor1 (A : \Set) : \Sigma (f : A -> Subs A) (isInj f)
-  => (=, =-isInj)
+\func cantor1 (A : \Set) : \Sigma (f : A -> Subs A) (isInj f) => (=, =-isInj)
 
-\func cantor2 (A : \Set) (f : A -> Subs A) (p : isSur f) : Empty
-  => {?}
+\func cantor2 (A : \Set) (f : A -> Subs A) (p : isSur f) : Empty =>
+  \let A' : Subs A => \lam x => Not (f x x)
+  \in \case p A' \with {
+    | inP (a, p) =>
+      contrProp {A' a} (\lam x _ => x $ rewrite p x) (\lam x y => x $ rewriteI p y)
+  }
 
 -- Optional
 -- 9. Постройте функции Nat -> BinNat и BinNat -> Nat и докажите, что они взаимно обратны
