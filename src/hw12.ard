@@ -1,16 +1,29 @@
 \import Function (o)
 \import Logic
+\import Logic.Meta
+\import Paths
 \import lect12 \hiding (Int', pos, neg)
 
 -- 1. Определите функцию negPred : Int -> Int такую, что negPred x = x, если x > 0, и negPred x = x - 1, если x <= 0
 
-\func negPred (x : Int) : Int => {?}
+\func negPred (x : Int) : Int
+  | pos 0 => neg 1
+  | pos n => pos n
+  | neg n => neg (suc n)
 
 -- 2. Определите функции сложения и умножения для Int
 
-\func \infixl 6 + (x y : Int) : Int => {?}
+\func \infixl 6 + (x y : Int) : Int \elim x, y
+  | pos a, pos b => pos (a Nat.+ b)
+  | pos a, neg b => a Nat.- b
+  | neg a, pos b => b Nat.- a
+  | neg a, neg b => neg (a Nat.+ b)
 
-\func \infixl 7 * (x y : Int) : Int => {?}
+\func \infixl 7 * (x y : Int) : Int \elim x, y
+  | pos a, pos b => pos (a Nat.* b)
+  | pos a, neg b => neg (a Nat.* b)
+  | neg (suc a), pos b => neg (suc a Nat.* b)
+  | neg (suc a), neg b => pos (suc a Nat.* b)
 
 -- 3. Определите тип данных BinNat для бинарных натуральных чисел
 --    У него должно быть три конструктора: для 0, для чисел вида 2*n и чисел вида 2*n+1
@@ -18,6 +31,9 @@
 --    Используйте типы данных с условиями, чтобы вычислительно отождествить различные нули
 
 \data BinNat
+  | bin-zero
+  | bin-odd (n : BinNat)
+  | bin-even (n : BinNat) \with { bin-zero => bin-zero }
 
 -- 4. Докажите, что функция pred сюръективна
 
@@ -25,24 +41,38 @@
   | 0 => 0
   | suc n => n
 
-\func pred-is-sur : isSur pred => {?}
+\func pred-is-sur : isSur pred => \lam b => inP (suc b, idp)
 
 -- 5. Докажите, что функция suc не сюръективна
 
-\func suc-is-not-sur (p : isSur suc) : Empty => {?}
+\func suc-is-not-sur (p : isSur suc) : Empty =>
+  \case p 0 \with {
+    | inP (_, ())
+  }
 
 -- 6. Пусть f : A -> B и g : B -> C ─ некоторые функции
 --    Докажите, что если f и g сюръективны, то g o f также сюръективна
 --    Докажите, что если g o f сюръективна, то g также сюръективна
 
-\func o-sur {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur f) (q : isSur g) : isSur (g o f) => {?}
+\func o-sur {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur f) (q : isSur g) : isSur (g o f) =>
+  \lam r => \case q r \with {
+    | inP (b, y) => \case p b \with {
+      | inP (a, x) => inP (a, pmap g x *> y)
+    }
+  }
 
-\func o-sur' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur (g o f)) : isSur g => {?}
+\func o-sur' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur (g o f)) : isSur g => \lam r =>
+    \case p r \with {
+      | inP (a, x) => inP (f a, x)
+    }
 
 -- 7. Определите множество конечных подмножеств множества A,
 --    то есть списков элементов A с точностью до перестановок и повторений элементов
 
 \data Set (A : \Set) : \Set
+  | set (\Sigma
+    (contains : Subs A)
+    (∃ (xs : Array A) (\Pi (x : A) -> contains x <-> ∃ (n : _) (xs n = x))))
 
 -- 8. Докажите теорему Кантора
 
