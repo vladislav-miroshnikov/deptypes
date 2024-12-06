@@ -1,17 +1,53 @@
 \import Data.Bool
+\import Data.Or
+\import Equiv.Univalence
 \import Function
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Prelude
+\import Relation.Equivalence (in~, ~-equiv)
 \import Set
+\import lect04 (sym)
+\import lect05 (unext)
+\import lect12 (Quotient, quotientEq, quotientEx)
 \import lect13
 
 -- 1. Докажите, что add x (add x s) = add x s и add x (add y s) = add y (add x s)
 
-\func add-idemp {S : SetSpec} (x : S.A) (s : S) : add x (add x s) = add x s => {?}
+\func add-idemp {S : SetSpec} (x : S.A) (s : S) : add x (add x s) = add x s =>
+  setExt \lam _ => (\case addProp __ \with {
+    | byLeft v => rewrite v addHead
+    | byRight v => v
+  },addTail)
 
-\func add-swap {S : SetSpec} (x y : S.A) (s : S) : add x (add y s) = add y (add x s) => {?}
+\func add-swap {S : SetSpec} (x y : S.A) (s : S) : add x (add y s) = add y (add x s) =>
+  setExt \lam a => (aux a y x, aux a x y)
+  \where {
+    \func aux (a x y : S.A) (h : S.isElem a (S.add y (S.add x s))) : S.isElem a (S.add x (S.add y s)) =>
+      \case addProp h \with {
+        | byLeft v => rewrite v $ addTail addHead
+        | byRight v => \case addProp v \with {
+          | byLeft w => rewrite w addHead
+          | byRight w => addTail $ addTail w
+        }
+      }
+  }
 
 -- 2. Докажите, что множество подмножеств является инстансом SetSpec
 
-\instance subsets {A : \Set} : SetSpec {A} (A -> \Prop) => {?}
+\instance subsets {A : \Set} : SetSpec {A} (A -> \Prop) \cowith
+  | empty _ => Empty
+  | add a f => \lam x => (x = a) || f x
+  | isElem a f => f a
+  | setExt h => ext \lam a => ext $ h a
+  | addHead => byLeft idp
+  | addTail => \lam h => byRight h
+  | emptyProp => id
+  | addProp => id
 
 -- 3. Докажите, что множество подмножеств является наибольшим инстансом, то есть любой другой вкладывается в него
 
@@ -19,11 +55,38 @@
 
 -- 4. Определите функцию isEmpty для ArraySet и для произвольного конечного множества
 
-\func isEmptyArraySet {A : \Set} (xs : ArraySet A) : Bool => {?}
+\func isEmptyArraySet {A : \Set} (xs : ArraySet A) : Bool => quotientEx empty isEmptyArraySet-lemma xs
+  \where {
+    \func empty {A : \Set} (a : Array A) : Bool => \case a \with {
+      | Prelude.nil => true
+      | a1 Prelude.:: l => false
+    }
 
-\func isEmptySet {S : FinSetSpec} (s : S) : Bool => {?}
+    \func isEmptyArraySet-lemma {A : \Set} {a a' : Array A} (eq : EqArray a a') : empty a = empty a' \elim a, a', eq
+      | Prelude.nil, Prelude.nil, _ => unfold empty idp
+      | Prelude.nil, a Prelude.:: l, eq => {?}
+      | a Prelude.:: l, Prelude.nil, eq => {?}
+      | a Prelude.:: l, a1 Prelude.:: l1, eq => unfold empty idp
+  }
+
+\func isEmptySet {S : FinSetSpec} (s : S) : Bool =>
+  \let
+    | q => rewrite arraySet=Set (\lam ys => isEmptyArraySet ys)
+  \in q s
 
 -- 5. Определите функцию union {A : \Set} : S -> S -> S для ArraySet и для произвольного S (удовлетворяющего FinSetSpec)
+
+\func array-set-to-abstract-set {S : FinSetSpec} (x : ArraySet S.A) : S => =-to-Equiv arraySet=Set x
+
+\func abstract-set-to-array-set {S : FinSetSpec} (x : S) : ArraySet S.A => =-to-Equiv (inv arraySet=Set) x
+
+\func union {S : FinSetSpec} (x y : S) : S =>
+  array-set-to-abstract-set $ unionArraySet (abstract-set-to-array-set x) (abstract-set-to-array-set y)
+
+\func unionArraySet {A : \Set} (x y : ArraySet A) : ArraySet A
+  | in~ x', in~ y' => {?}
+  | in~ a, ~-equiv x y r i => {?}
+  | ~-equiv x y r i, in~ a => {?}
 
 -- 6. Определите функцию intersection {A : DecSet} : S -> S -> S для ArraySet и для произвольного S (удовлетворяющего FinSetSpec)
 
@@ -33,7 +96,7 @@
 --    b) Определите функцию size из лекции
 --    c) Докажите, что size-le эквивалентно определению через size, если A -- разрешимо и S -- конечно
 
-\func size-le {S : SetSpec} (s : S) (n : Nat) : \Prop => {?}
+\func size-le {S : SetSpec} (s : S) (n : Nat) : \Prop => ∃ (a : DecSet S.A) (size {?} = n) (arrayToSet a = s)
 
 \func size {S : FinSetSpec} (d : DecSet S.A) (s : S) : Nat => {?}
 
