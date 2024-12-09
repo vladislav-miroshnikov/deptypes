@@ -1,16 +1,84 @@
+\import Arith.Nat
 \import Data.Bool
 \import Data.List \hiding (headDef)
-\import hw07
-\import lect08
+\import Function.Meta
+\import Meta
 \import Order.LinearOrder
+\import Paths
+\import Paths.Meta
+\import hw07
+\import lect04 (sym)
+\import lect05 (funExt')
+\import lect08
 \open LinearOrder
+
 
 -- 1. Реализуйте функцию filter и докажите ее корректность, то есть, что выполнены следующие условия:
 --    * filter p xs является подсписком xs
 --    * Все элементы filter p xs удовлетворяют предикату p
 --    * Любой подсписок xs с тем же свойством является подсписком filter p xs
 
+\data In {A : \Type} (a : A) (xs : List A) \with
+  | a, :: x xs => in-head (a = x)
+  | a, :: x xs => in-tail (In a xs)
+
+\data Sublist {A : \Type} (xs : List A) (ys : List A) \with
+  | nil, _ => nil-sublist
+  | :: x xs, :: y ys => head-in-sublist (x = y) (Sublist xs ys)
+  | xs, :: y ys => skip-head (Sublist xs ys)
+
+\func filter {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | :: x xs => \case p x \with {
+    | true => x :: filter p xs
+    | false => filter p xs
+  }
+
+\data list-respects-p {A : \Type} (p : A -> Bool) (xs : List A) \elim xs
+  | nil => nil-respects-p
+  | :: x xs => cons-respects-p (p x = true) (list-respects-p p xs)
+
+\func filter-sublist {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter p xs) xs \elim xs
+  | nil => nil-sublist
+  | :: a xs => \case p a \as b, idp : p a = b \with {
+    | false, p1 => rewrite p1 $ skip-head (filter-sublist p xs)
+    | true, p1 => rewrite p1 $ head-in-sublist idp (filter-sublist p xs)
+  }
+
+\func filter-respects-p {A : \Type} (p : A -> Bool) (xs : List A) : list-respects-p p (filter p xs) \elim xs
+  | nil => nil-respects-p
+  | :: a xs => \case p a \as b, idp : p a = b \with {
+    | false, p1 => rewrite p1 $ filter-respects-p p xs
+    | true, p1 => rewrite p1 $ cons-respects-p p1 (filter-respects-p p xs)
+  }
+
+\func sublist-filter-sublist {A : \Type} (p : A -> Bool) (xs xs' : List A)
+                             (xs'-sub : Sublist xs' xs) (xs'-resepcts-p : list-respects-p p xs')
+  : Sublist xs' (filter p xs) \elim xs, xs', xs'-sub, xs'-resepcts-p
+  | xs, nil, nil-sublist, nil-respects-p => nil-sublist
+  | :: y xs, :: x xs', head-in-sublist p1 xs'-sub, cons-respects-p p2 xs'-resepcts-p => rewrite (rewrite p1 p2)
+    $ head-in-sublist p1 (sublist-filter-sublist p xs xs' xs'-sub xs'-resepcts-p)
+  | :: y xs, nil, skip-head xs'-sub, nil-respects-p => nil-sublist
+  | :: y xs, :: x xs', skip-head xs'-sub, cons-respects-p px=true xs'-resepcts-p => mcases \with {
+    | true => skip-head $ sublist-filter-sublist p xs (x :: xs') xs'-sub $ cons-respects-p px=true xs'-resepcts-p
+    | false => sublist-filter-sublist p xs (x :: xs') xs'-sub $ cons-respects-p px=true xs'-resepcts-p
+  }
 -- 2. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2
+
+\func perm-sym {A : \Type} {l1 l2 : List A} (perm : Perm l1 l2) : Perm l2 l1 \elim l1, l2, perm
+  | nil, nil, perm-nil => perm-nil
+  | x :: l1, y :: l2, perm-cons p perm => perm-cons (inv p) (perm-sym perm)
+  | l1, l2, perm-trans perm1 perm2 => perm-trans (perm-sym perm2) (perm-sym perm1)
+  | x :: (x' :: l1), y :: (y' :: l2), perm-swap p q s => perm-swap (inv q) (inv p) (inv s)
+
+\func perm-SortEq {A : Dec} {l1 l2 : List A} (p : Insertion.sort l1 = Insertion.sort l2) : Perm l1 l2 =>
+  perm-trans (Insertion.sort-perm l1) (rewrite p (perm-sym (Insertion.sort-perm l2)))
+
+\func sortEq-perm {A : Dec} {l1 l2 : List A} (perm : Perm l1 l2) : Insertion.sort l1 = Insertion.sort l2 \elim l1, l2, perm
+  | nil, nil, perm-nil => idp
+  | x :: l1, y :: l2, perm-cons p perm => rewrite p (pmap (Insertion.sort.insert y) (sortEq-perm perm))
+  | l1, l2, perm-trans perm1 perm2 => sortEq-perm perm1 *> sortEq-perm perm2
+  | x :: (x' :: l1), y :: (y' :: l2), perm-swap p q s => rewrite (p, q, s) (Insertion.sort.insert-comm y' y (Insertion.sort-sorted l2))
 
 -- 3. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort
 
@@ -20,6 +88,30 @@
 -- 4. Определите факториал через хвостовую рекурсию
 --    Докажите, что он равен обычному определению факториала
 
+\func fact (n : Nat) : Nat
+  | 0 => 1
+  | suc n => suc n Nat.* fact n
+
+\func fact-tail (n : Nat) : Nat => fact-tail' 1 n
+  \where {
+    \func fact-tail' (res n : Nat) : Nat \elim n
+      | 0 => res
+      | suc n => fact-tail' (suc n Nat.* res) n
+  }
+
+\func fact-eq : fact = fact-tail => funExt' $ fact-eq-lemma
+  \where {
+    \func fact-eq-lemma (a : Nat) : fact a = fact-tail a
+      | 0 => idp
+      | suc a => unfold fact-tail $ sym $ fact-eq-lemma-lemma a (suc a)
+      \where {
+        \func fact-eq-lemma-lemma (a res : Nat) : hw08.fact-tail.fact-tail' res a = res Nat.* fact a  \elim a
+          | 0 => idp
+          | suc a => fact-eq-lemma-lemma a (suc a Nat.* res) *>
+          pmap (\lam x => x Nat.* fact a) NatSemiring.*-comm *>
+          NatSemiring.*-assoc
+      }
+  }
 -- 5. Определите функцию, которая проверяет правильность скобочной последовательности
 --    Докажите ее корректность
 

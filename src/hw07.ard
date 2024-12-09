@@ -3,6 +3,7 @@
 \import Function.Meta
 \import Logic
 \import Meta
+\import Paths
 \import Paths.Meta
 \import lect07
 \open Nat (*)
@@ -15,6 +16,39 @@
 
 -- Optional:
 -- 2. Докажите эквивалентность четырех различных определений LessOrEq: lessOrEq, lessOrEq', LessOrEq и LessOrEq'
+
+\func LessOrEq->lessOrEq {x y : Nat} (_ : LessOrEq x y) : lessOrEq x y
+  | {0}, {y}, zero<=_ => (y, idp)
+  | {suc x}, {suc y}, suc<=suc leq =>
+    \have h => LessOrEq->lessOrEq leq \in
+      (h.1, pmap suc h.2)
+
+\func lessOrEq->lessOrEq' {x y : Nat} (_ : lessOrEq x y) : lessOrEq' x y
+  | {0}, {0}, leq => ()
+  | {0}, {suc y}, leq => ()
+  | {suc x}, {0}, leq => \case leq.2
+  | {suc x}, {suc y}, leq => lessOrEq->lessOrEq' (leq.1, pmap pred leq.2)
+
+\func lessOrEq'->LessOrEq' {x y : Nat} (_ : lessOrEq' x y) : LessOrEq' x y
+  | {0}, {0}, leq => <=-refl idp
+  | {0}, {suc y}, leq => <=-step (lessOrEq'->LessOrEq' leq)
+  | {suc x}, {suc y}, leq => LessOrEq'-suc (lessOrEq'->LessOrEq' leq)
+  \where {
+    \func LessOrEq'-suc {x y : Nat} (_ : LessOrEq' x y) : LessOrEq' (suc x) (suc y)
+      | <=-refl p => <=-refl (pmap suc p)
+      | {x}, {suc y}, <=-step leq => <=-step (LessOrEq'-suc leq)
+  }
+
+\func LessOrEq'->LessOrEq {x y : Nat} (_ : LessOrEq' x y) : LessOrEq x y
+  | {0}, {_}, <=-refl idp => zero<=_
+  | {suc x}, {0}, <=-refl p => \case p
+  | {suc x}, {suc y}, <=-refl p => suc<=suc (LessOrEq'->LessOrEq (<=-refl $ pmap pred p))
+  | {x}, {suc y}, <=-step leq => LessOrEq-step (LessOrEq'->LessOrEq leq)
+  \where {
+    \func LessOrEq-step {x y : Nat} (_ : LessOrEq x y) : LessOrEq x (suc y)
+      | {0}, zero<=_ => zero<=_
+      | {suc x}, {suc y}, suc<=suc leq => suc<=suc (LessOrEq-step leq)
+  }
 
 -- 3. Определите рефлексивное транзитивное замыкание отношения
 --    То есть ReflTransClosure R -- это минимальное рефлексивное и транзитивное отношение, содержащее R
@@ -90,7 +124,24 @@
 
 \func isEven (n : Nat) => \Sigma (k : Nat) (n = 2 * k)
 
-\func isEven-dec : DecPred isEven => {?}
+\func isEven-dec : DecPred isEven => \lam a => aux a
+  \where {
+    \func aux (a : Nat) : Decide (isEven a) \elim a
+      | 0 => yes (zero, idp)
+      | 1 => no (\lam (k, n) => one/=even k n)
+      | suc (suc n) => cases (aux n) \with {
+        | yes (k, n') => yes (suc k, rewrite n' idp)
+        | no p => no (\lam (k, m) => p $ even-2 n k m)
+      }
+
+    \func one/=even (n : Nat) : 1 = (2 * n) -> Empty \elim n
+      | 0 => \lam p => \case p
+      | suc n => \lam p => \case p
+
+    \func even-2 (n : Nat) (k : Nat) (even : suc (suc n) = 2 * k) : isEven n \elim k
+      | 0 => \case even
+      | suc k => (k, pmap pred (pmap pred even))
+  }
 
 -- 10. Докажите, что если равенство элементов A разрешимо, то и равенство элементов List A тоже разрешимо
 
