@@ -83,7 +83,12 @@
 -- 3. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort
 
 \func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l))
-  : sort l = Insertion.sort l => {?}
+  : sort l = Insertion.sort l => inv $ sortEq-perm p *> sort-idempotent s
+
+\func sort-idempotent {A : Dec} {xs : List A} (s : Sorted xs) : Insertion.sort xs = xs \elim xs, s
+  | nil, sorted-nil => idp
+  | :: x nil, sorted-cons x<= s => rewrite (sort-idempotent s) idp
+  | :: x (:: x' xs), sorted-cons x<= s => rewrite (sort-idempotent s) $ rewrite (dec<=_reduce x<=) $ idp
 
 -- 4. Определите факториал через хвостовую рекурсию
 --    Докажите, что он равен обычному определению факториала
@@ -117,13 +122,11 @@
 
 \data Paren | Left | Right
 
-\func isBalanced (xs : List Paren) : Bool
-  => {?}
+\func isBalanced (xs : List Paren) : Bool => {?}
 
 \data Balanced (xs : List Paren) \with
   | nil => nil-balanced
   | :: Left xs => cons-balanced {ys : List Paren} (Balanced ys) (xs = ys ++ Right :: nil)
   | xs => append-balanced {ys zs : List Paren} (Balanced ys) (Balanced zs) (xs = ys ++ zs)
 
-\func isBalanced-correct (xs : List Paren) : (isBalanced xs = true) <-> Balanced xs
-  => {?}
+\func isBalanced-correct (xs : List Paren) : (isBalanced xs = true) <-> Balanced xs => {?}
