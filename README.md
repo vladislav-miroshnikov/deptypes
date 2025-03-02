@@ -1,1 +1,1 @@
-Repository with task for dependent types course
+# Repository with task for dependent types course
